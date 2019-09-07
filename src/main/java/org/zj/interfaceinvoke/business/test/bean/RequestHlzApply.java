@@ -14,10 +14,10 @@ public class RequestHlzApply {
 
     /**
      * version : 1.0.0
-     * memberId : 12345678
-     * reqNo : 123456
+     * memberId : xxxx
+     * reqNo : xxxx
      * reqTime : 2019-05-22 13:44:44
-     * reqBody : {"baseUser":{"bankCardNo":"6222600260001072444","idCard":"310102197010102033","idName":"张三","ip":"127.0.0.1","phone":"18516522943"},"customParams":{"isReloan":"1"},"memberId":"12345678","transId":"2141","workId":"201"}
+     * reqBody : {"baseUser":{"bankCardNo":"xxxxx","idCard":"xxxx","idName":"xxxx","ip":"127.0.0.1","phone":"xxxxx"},"customParams":{"isReloan":"1"},"memberId":"xxxx","transId":"xxxx","workId":"xxxx"}
      */
 
     private String version;
@@ -25,6 +25,27 @@ public class RequestHlzApply {
     private String reqNo;
     private String reqTime;
     private String reqBody;
+    private ReqBodyBean reqBodyBean;
+
+    public ReqBodyBean getReqBodyBean() {
+        return reqBodyBean;
+    }
+
+    public RequestHlzApply setReqBodyBean(ReqBodyBean reqBodyBean) {
+        this.reqBodyBean = reqBodyBean;
+        return this;
+    }
+
+    private ReqBodyBean.BaseUserBean userInfo;
+
+    public ReqBodyBean.BaseUserBean getUserInfo() {
+        return userInfo;
+    }
+
+    public RequestHlzApply setUserInfo(ReqBodyBean.BaseUserBean userInfo) {
+        this.userInfo = userInfo;
+        return this;
+    }
 
     public String getVersion() {
         return version;
@@ -68,11 +89,11 @@ public class RequestHlzApply {
 
     public static class ReqBodyBean {
         /**
-         * baseUser : {"bankCardNo":"6222600260001072444","idCard":"310102197010102033","idName":"张三","ip":"127.0.0.1","phone":"18516522943"}
+         * baseUser : {"bankCardNo":"xxxx","idCard":"xxxx","idName":"xxxx","ip":"127.0.0.1","phone":"xxxx"}
          * customParams : {"isReloan":"1"}
-         * memberId : 12345678
-         * transId : 2141
-         * workId : 201
+         * memberId : xxxx
+         * transId : xxxx
+         * workId : xxxx
          */
 
         private BaseUserBean baseUser;
@@ -123,11 +144,11 @@ public class RequestHlzApply {
 
         public static class BaseUserBean {
             /**
-             * bankCardNo : 6222600260001072444
-             * idCard : 310102197010102033
-             * idName : 张三
+             * bankCardNo : xxxx
+             * idCard : xxxx
+             * idName : xxxx
              * ip : 127.0.0.1
-             * phone : 18516522943
+             * phone : xxxx
              */
 
             private String bankCardNo;
@@ -174,6 +195,17 @@ public class RequestHlzApply {
 
             public void setPhone(String phone) {
                 this.phone = phone;
+            }
+
+            @Override
+            public String toString() {
+                return "BaseUserBean{" +
+                        "bankCardNo='" + bankCardNo + '\'' +
+                        ", idCard='" + idCard + '\'' +
+                        ", idName='" + idName + '\'' +
+                        ", ip='" + ip + '\'' +
+                        ", phone='" + phone + '\'' +
+                        '}';
             }
         }
     }

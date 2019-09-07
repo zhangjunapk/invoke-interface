@@ -13,6 +13,21 @@ public class InterfaceInvoke {
     private String interfaceName;
     private String invokeMethod;
     private String paramHandlerRef;
+    private String responseHandlerRef;
+
+    public InterfaceInvoke setParamHandlerRef(String paramHandlerRef) {
+        this.paramHandlerRef = paramHandlerRef;
+        return this;
+    }
+
+    public String getResponseHandlerRef() {
+        return responseHandlerRef;
+    }
+
+    public InterfaceInvoke setResponseHandlerRef(String responseHandlerRef) {
+        this.responseHandlerRef = responseHandlerRef;
+        return this;
+    }
 
     public String getId() {
         return id;

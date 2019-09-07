@@ -10,6 +10,16 @@ package org.zj.interfaceinvoke.base.invoke;
 public class Student {
     private Student stu;
     private String name;
+    private String sex;
+
+    public String getSex() {
+        return sex;
+    }
+
+    public Student setSex(String sex) {
+        this.sex = sex;
+        return this;
+    }
 
     public Student getStu() {
         return stu;

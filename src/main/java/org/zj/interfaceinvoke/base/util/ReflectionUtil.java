@@ -28,7 +28,7 @@ public class ReflectionUtil {
 
     public static Object instanceField(Field field){
         try {
-            Object o = field.getDeclaringClass().newInstance();
+            Object o = field.getType().newInstance();
             return o;
         } catch (InstantiationException e) {
             e.printStackTrace();

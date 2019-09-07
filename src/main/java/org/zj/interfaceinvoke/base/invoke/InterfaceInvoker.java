@@ -1,5 +1,6 @@
 package org.zj.interfaceinvoke.base.invoke;
 
+import com.alibaba.fastjson.JSONObject;
 import org.zj.interfaceinvoke.base.Constants;
 import org.zj.interfaceinvoke.base.bean.InterfaceInvoke;
 import org.zj.interfaceinvoke.base.bean.InterfaceInvokeParam;
@@ -9,8 +10,10 @@ import org.zj.interfaceinvoke.base.operate.IResultHandle;
 import org.zj.interfaceinvoke.base.util.ReflectionUtil;
 import org.zj.interfaceinvoke.base.util.data.DBUtil;
 import org.zj.interfaceinvoke.base.util.http.HttpUtil;
+import org.zj.interfaceinvoke.business.test.bean.RequestHlzApply;
 
 import javax.management.relation.Relation;
+import javax.swing.*;
 import java.lang.reflect.Field;
 import java.sql.Ref;
 import java.util.ArrayList;
@@ -53,6 +56,55 @@ public class InterfaceInvoker {
 
     public InterfaceInvoker(String interfaceId) {
         this.interfaceId = interfaceId;
+    }
+
+    public String getInterfaceId() {
+        return interfaceId;
+    }
+
+    public InterfaceInvoker setInterfaceId(String interfaceId) {
+        this.interfaceId = interfaceId;
+        return this;
+    }
+
+    public String getBusinessId() {
+        return businessId;
+    }
+
+    public List<RequestParam> getRequestParam() {
+        return requestParam;
+    }
+
+    public InterfaceInvoker setRequestParam(List<RequestParam> requestParam) {
+        this.requestParam = requestParam;
+        return this;
+    }
+
+    public IParamHandle getParamHandle() {
+        return paramHandle;
+    }
+
+    public InterfaceInvoker setParamHandle(IParamHandle paramHandle) {
+        this.paramHandle = paramHandle;
+        return this;
+    }
+
+    public IResultHandle getResultHandle() {
+        return resultHandle;
+    }
+
+    public InterfaceInvoker setResultHandle(IResultHandle resultHandle) {
+        this.resultHandle = resultHandle;
+        return this;
+    }
+
+    public List<String> getJsonResponse() {
+        return jsonResponse;
+    }
+
+    public InterfaceInvoker setJsonResponse(List<String> jsonResponse) {
+        this.jsonResponse = jsonResponse;
+        return this;
     }
 
     /**
@@ -104,7 +156,6 @@ public class InterfaceInvoker {
             for (String resp : jsonResponse) {
                 resultHandle.handleResult(resp);
             }
-
         }
     }
 
@@ -112,7 +163,14 @@ public class InterfaceInvoker {
         //直接在这里请求数据
         for (RequestParam b : requestParam) {
             //参数准备完毕，接下来就是发送请求;
-            System.out.println(b);
+            System.out.println(JSONObject.toJSONString(b));
+
+            String handle = new HttpUtil()
+                    .url(b.getUrl())
+                    .addJsonParamString(b.getHandledJsonParam())
+                    .handle();
+            System.out.println(handle);
+            jsonResponse.add(handle);
         }
     }
 
@@ -133,7 +191,6 @@ public class InterfaceInvoker {
             for (RequestParam b : requestParam) {
                 paramHandle.handleParam(b);
             }
-
         }
     }
 
@@ -160,7 +217,30 @@ public class InterfaceInvoker {
             String queryParam = "select * from zj_interface_invoke_param where id='" + id + "'";
             List<Map> result1 = DBUtil.getResult(queryParam);
             List<InterfaceInvokeParam> convert1 = DBUtil.convert(result1, InterfaceInvokeParam.class);
+            checkAndInflateParamHandler(bean);
             parseAndInflateRequestParam(bean, convert1);
+            inflateResultHandler(bean);
+        }
+    }
+
+    private void inflateResultHandler(InterfaceInvoke bean) {
+        String responseHandlerRef = bean.getResponseHandlerRef();
+        if(responseHandlerRef==null||"".equals(responseHandlerRef)){
+            return;
+        }
+        Object o = ReflectionUtil.newInstance(responseHandlerRef);
+        if(o!=null && o instanceof IResultHandle){
+            setResultHandler((IResultHandle) o);
+        }
+    }
+
+    private void checkAndInflateParamHandler(InterfaceInvoke bean) {
+        String paramHandlerRef = bean.getParamHandlerRef();
+        if(paramHandlerRef!=null){
+            Object o = ReflectionUtil.newInstance(paramHandlerRef);
+            if(o!=null&&o instanceof IParamHandle){
+                setParamHandler((IParamHandle) o);
+            }
         }
     }
 
@@ -178,6 +258,8 @@ public class InterfaceInvoker {
         Map<String, String> formMap = new HashMap<>();
         Map<String, String> headMap = new HashMap<>();
         Map<String, Map> tableData = new HashMap<>();
+
+        Map<String,Object> fieldInstanceMap=new HashMap<>();
         //接下来就是参数的填充了
         for (InterfaceInvokeParam b : convert1) {
             String currentDataType = b.getCurrentDataType();
@@ -191,7 +273,7 @@ public class InterfaceInvoker {
                     }
                     if (Constants.JSON.equals(paramType)) {
                         //这个参数要放到json里面
-                        inflateToJson(jsonParamMap, b, tableData);
+                        inflateToJson(fieldInstanceMap,jsonParamMap, b, tableData);
                     }
                     if (Constants.FORM.equals(paramType)) {
                         formMap.put(b.getParamFieldName(), b.getDataValue());
@@ -214,42 +296,42 @@ public class InterfaceInvoker {
      * @param jsonParamMap
      * @param b
      */
-    private void inflateToJson(Map<String, Object> jsonParamMap, InterfaceInvokeParam b, Map<String, Map> tableData) {
+    private void inflateToJson(Map<String,Object> fieldInstanceMap,Map<String, Object> jsonParamMap, InterfaceInvokeParam b, Map<String, Map> tableData) {
         String dataRef = b.getDataRef();
+        String dataValue = b.getDataValue();
         String paramFieldName = b.getParamFieldName();
         //如果定义的参数没有表示，那也返回
         if (paramFieldName == null || "".equals(paramFieldName)) {
             System.out.println("没有定义字段");
             return;
         }
-        //如果定义的表中字段没有就返回
-        if (dataRef == null || "".equals(dataRef)) {
-            System.out.println("没有定义表字段");
-            return;
-        }
-        //表中的表示地址如果没有按照规则，也返回
-        String[] split = dataRef.split("\\.");
-        if (split == null || split.length <= 1) {
-            System.out.println("表地址没按规则");
-            return;
-        }
-        //获得表名
-        String tableName = split[0];
-        //看能不能得到缓存的表数据
-        Map tableDataMap = tableData.get(tableName);
-        //如果获得数据了，那我就直接从这里面得到
-        if (tableDataMap == null) {
-            //如果没有得到缓存的表数据，说明是第一次从这个表里获得数据，我要先查一遍
-            List<Map> maps = queryTableDataWithBusinessId(tableName);
-            if (maps == null || maps.size() <= 0) {
+        //要把这个值塞进去
+        Object o = null;
+        //先看表地址是否为空
+        if(dataRef!=null){
+            String[] split = dataRef.split("\\.");
+            if (split == null || split.length <= 1) {
+                System.out.println("表地址没按规则");
                 return;
             }
-            tableData.put(tableName, maps.get(0));
+            //获得表名
+            String tableName = split[0];
+            //看能不能得到缓存的表数据
+            Map tableDataMap = tableData.get(tableName);
+            //如果获得数据了，那我就直接从这里面得到
+            if (tableDataMap == null) {
+                //如果没有得到缓存的表数据，说明是第一次从这个表里获得数据，我要先查一遍
+                List<Map> maps = queryTableDataWithBusinessId(tableName);
+                if (maps == null || maps.size() <= 0) {
+                    return;
+                }
+                tableData.put(tableName, maps.get(0));
+            }
+            o = tableData.get(split[0]).get(split[1]);
+        }else if(dataValue!=null){
+            //如果具体的值不为空，那就塞进去
+            o=dataValue;
         }
-
-        //然后我需要把数据塞进去，这个塞进去还要是递归的
-        //直接获得这个字段的值
-        Object o = tableData.get(split[0]).get(split[1]);
         //获得数据了，接下来我需要把数据填进去
         String className = b.getClassName();
         if (className == null || "".equals(className)) {
@@ -260,8 +342,15 @@ public class InterfaceInvoker {
             Object o2 = ReflectionUtil.newInstance(className);
             jsonParamMap.put(className,o2);
         }
-        //接下来都有对象了，我需要递归把数据放进去
-        recursiveInflateData(jsonParamMap.get(className),b.getParamFieldName(),o);
+        /**
+         * 里面存放字段的实例，因为可能会出现多重赋值的情况
+         */
+
+        setVal(new StringBuilder(),fieldInstanceMap,b.getParamFieldName(),jsonParamMap.get(className),o);
+
+        //recursiveInflateData(new HashMap<>(),jsonParamMap.get(className),b.getParamFieldName(),o);
+
+        System.out.println(jsonParamMap.get(className)+" 操作结束 "+b.getParamFieldName());
     }
 
     /**
@@ -270,9 +359,10 @@ public class InterfaceInvoker {
      * @param fileNameMultilayer
      * @param val
      */
-    private void recursiveInflateData(Object obj,String fileNameMultilayer, Object val) {
+    private void recursiveInflateData(Map<String,Object> member,Object obj,String fileNameMultilayer, Object val) {
         StringBuilder sb=new StringBuilder();
         String[] split = fileNameMultilayer.split("\\.");
+        System.out.println("字段名->"+split[0]);
         if(split.length==1){
             ReflectionUtil.setValue(obj,split[0],val);
             return;
@@ -282,18 +372,47 @@ public class InterfaceInvoker {
             Field field;
             System.out.println(obj);
             field = ReflectionUtil.getField(obj.getClass(), s);
-
+            if(member.get(sb.toString())==null){
+                Object o = ReflectionUtil.instanceField(field);
+                member.put(sb.toString(),o);
+            }
             //先初始化那个对象，然后再设置进去
-            Object o = ReflectionUtil.instanceField(field);
+            System.out.println("剥开一层:-->"+sb.toString());
             String substring = fileNameMultilayer.substring(fileNameMultilayer.indexOf(".") + 1);
             sb.append(substring);
             System.out.println(substring);
-            recursiveInflateData(o,substring,val);
+            recursiveInflateData(member,member.get(sb.toString()),substring,val);
             //内层走完，到外面直接设置进去
-            ReflectionUtil.setValue(obj,field,o);
+            ReflectionUtil.setValue(obj,field,member.get(sb.toString()));
         }
     }
+    /**
+     * 多层赋值
+     * @param fieldNameMultilayer
+     * @param obj
+     * @param value
+     */
+    public static void setVal(StringBuilder sbCurrentFieldName,Map<String,Object> fieldInstanceMap,String fieldNameMultilayer,Object obj,Object value){
+        //设置值
+        String[] split = fieldNameMultilayer.split("\\.");
+        Object o=null;
+        if(split.length==1){
+            //到头了，我需要
+            ReflectionUtil.setValue(obj,split[0],value);
+        }else{
+            sbCurrentFieldName.append(split[0]).append(".");
+            o=fieldInstanceMap.get(sbCurrentFieldName.toString());
+            if(o==null){
+                o = ReflectionUtil.instanceField(ReflectionUtil.getField(obj.getClass(), split[0]));
+                fieldInstanceMap.put(sbCurrentFieldName.toString(),o);
+            }
+            ReflectionUtil.setValue(obj,split[0],o);
+            //剥开一层
+            System.out.println("--->"+sbCurrentFieldName);
+            setVal(sbCurrentFieldName,fieldInstanceMap,fieldNameMultilayer.substring(fieldNameMultilayer.indexOf(".")+1),o,value);
+        }
 
+    }
     private List<Map> queryTableDataWithBusinessId(String tableName) {
         String sql = "select * from " + tableName + " where business_id='" + businessId + "'";
         List<Map> result = DBUtil.getResult(sql);
@@ -312,12 +431,17 @@ public class InterfaceInvoker {
       /*  Student student = new Student();
         new InterfaceInvoker("").recursiveInflateData(student,"stu.name","zhangsan");
         System.out.println(student.getStu().getName());*/
-        new DBUtil().setUrl(" jdbc:mysql://localhost:3306/somethinginteresing?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&serverTimezone=Asia/Shanghai")
+        new DBUtil().setUrl("jdbc:mysql://localhost:3306/somethinginteresing?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&serverTimezone=Asia/Shanghai")
                 .setUsername("root")
                 .setDriverName("com.mysql.jdbc.Driver")
                 .generateDataSource();
         new InterfaceInvoker("1").setBusinessId("1").handle();
+/*
+        Field field = ReflectionUtil.getField(RequestHlzApply.class, "userInfo");
 
+        //先初始化那个对象，然后再设置进去
+        Object o = ReflectionUtil.instanceField(field);
+        System.out.println(o);*/
        /* Student student=new Student();
         Class<? extends Student> aClass = student.getClass();
         System.out.println(aClass);
